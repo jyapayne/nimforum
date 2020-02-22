@@ -267,7 +267,9 @@ proc initialise() =
     {
       "title": config.title,
       "timestamp": encodeUrl(CompileDate & CompileTime),
-      "ga": config.ga
+      "ga": config.ga,
+      # An ugly hack, maybe there's a better way?
+      "server_url": "$server_url"
     }.newStringTable()
 
 
@@ -1554,4 +1556,4 @@ routes:
 
   get re"/(.*)":
     cond request.matches[0].splitFile.ext == ""
-    resp karaxHtml
+    resp karaxHtml % {"server_url": request.url.jsEscape}.newStringTable

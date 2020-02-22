@@ -1,7 +1,8 @@
-import options, tables, sugar, httpcore
+import options, tables, sugar, httpcore, uri
 from dom import window, Location, document, decodeURI
 
 include karax/prelude
+import karax/[kdom]
 import jester/[patterns]
 
 import threadlist, postlist, header, profile, newthread, error, about
@@ -12,6 +13,7 @@ type
   State = ref object
     originalTitle: cstring
     url: Location
+    serverUri: Uri
     profile: ProfileState
     newThread: NewThread
     about: About
@@ -36,6 +38,7 @@ proc newState(): State =
   State(
     originalTitle: document.title,
     url: copyLocation(window.location),
+    serverUri: SERVER_URI,
     profile: newProfileState(),
     newThread: newNewThread(),
     about: newAbout(),
@@ -56,6 +59,7 @@ proc onPopState(event: dom.Event) =
   state.url = copyLocation(window.location)
 
   redraw()
+  window.location.reload()
 
 type Params = Table[string, string]
 type
@@ -66,12 +70,12 @@ type
 proc r(n: string, p: proc (params: Params): VNode): Route = Route(n: n, p: p)
 proc route(routes: openarray[Route]): VNode =
   let path =
-    if state.url.pathname.len == 0: "/" else: $state.url.pathname
+    if state.serverUri.path.len == 0: "/" else: state.serverUri.path
   let prefix = if appName == "/": "" else: appName
   for route in routes:
     let pattern = (prefix & route.n).parsePattern()
     var (matched, params) = pattern.match(path)
-    parseUrlQuery($state.url.search, params)
+    parseUrlQuery($state.serverUri.query, params)
     if matched:
       return route.p(params)
 

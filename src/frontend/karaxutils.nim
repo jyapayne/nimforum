@@ -1,4 +1,4 @@
-import strutils, strformat, parseutils, tables
+import strutils, strformat, parseutils, tables, uri
 
 proc parseIntSafe*(s: string, value: var int) {.noSideEffect.} =
   ## parses `s` into an integer in the range `validRange`. If successful,
@@ -31,6 +31,10 @@ when defined(js):
 
   const appName* = "/"
 
+  # Get the server URL that we set in the backend
+  var SERVER_URL* {.importc: "SERVER_URL".}: cstring
+  let SERVER_URI* = parseUri($SERVER_URL)
+
   proc class*(classes: varargs[tuple[name: string, present: bool]],
              defaultClasses: string = ""): string =
     result = defaultClasses & " "
@@ -42,11 +46,13 @@ when defined(js):
     ## Concatenates ``relative`` to the current URL in a way that is
     ## (possibly) sane.
     var relative = relative
-    assert appName in $window.location.pathname
+    assert appName in SERVER_URI.path
     if relative[0] == '/': relative = relative[1..^1]
 
-    return $window.location.protocol & "//" &
-            $window.location.host &
+    let port = if SERVER_URI.port.len > 0: ":" & SERVER_URI.port else: ""
+
+    return SERVER_URI.scheme & "://" &
+            SERVER_URI.hostname & port &
             appName &
             relative &
             search &
@@ -62,7 +68,7 @@ when defined(js):
       query.add(param[0] & "=" & param[1])
 
     if query.len > 0:
-      var search = if reuseSearch: $window.location.search else: ""
+      var search = if reuseSearch: SERVER_URI.query else: ""
       if search.len != 0: search.add("&")
       search.add(query)
       if search[0] != '?': search = "?" & search
@@ -86,6 +92,7 @@ when defined(js):
       let url = n.getAttr("href")
 
       navigateTo(url)
+      window.location.href = url
 
   proc newFormData*(form: dom.Element): FormData
     {.importcpp: "new FormData(@)", constructor.}

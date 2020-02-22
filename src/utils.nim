@@ -1,13 +1,21 @@
-import asyncdispatch, smtp, strutils, json, os, rst, rstgen, xmltree, strtabs,
-  htmlparser, streams, parseutils, options, logging
+import asyncdispatch, strutils, json, os, rst, rstgen, xmltree, strtabs,
+  htmlparser, streams, parseutils, logging, uri, options, nre, strformat
 from times import getTime, getGMTime, format
+
+import jester
+import jester/private/utils as jesterutils
+
+when useHttpBeast:
+  import httpbeast except Settings, Request
+else:
+  import asynchttpserver
 
 # Used to be:
 # {'A'..'Z', 'a'..'z', '0'..'9', '_', '\128'..'\255'}
 let
   UsernameIdent* = IdentChars # TODO: Double check that everyone follows this.
 
-import frontend/[karaxutils, error]
+import frontend/[error]
 export parseInt
 
 type
@@ -181,3 +189,24 @@ proc rstToHtml*(content: string): string =
     add(result, node, indWidth=0, addNewLines=false)
   except:
     warn("Could not parse rst html.")
+
+proc jsEscape*(str: string): string =
+  ## Escapes a string to be stored in a JS variable. This prevents
+  ## XSS attacks. Taken from here: https://portswigger.net/web-security/cross-site-scripting/preventing
+  str.replace(
+    re"[^\w. ]",
+    proc(match: string): string =
+      let code = match[0].ord
+      fmt"\u{code:04x}"
+  )
+
+proc url*(request: Request): string =
+  ## Get the full URL of the request, including the query params
+  let nativeRequest = request.getNativeReq
+  when useHttpBeast:
+    let query = nativeRequest.path.get("").parseUri().query
+  else:
+    let query = nativeRequest.url.query
+
+  let proto = if request.secure: "https" else: "http"
+  result = proto & "://" & request.host & request.path & query
